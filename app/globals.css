@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: oklch(0.15 0.02 270);
+  --color-foreground: oklch(0.95 0.01 270);
+  --color-card: oklch(0.15 0.02 270);
+  --color-card-foreground: oklch(0.95 0.01 270);
+  --color-popover: oklch(0.15 0.02 270);
+  --color-popover-foreground: oklch(0.95 0.01 270);
+  --color-primary: oklch(0.95 0.01 270);
+  --color-primary-foreground: oklch(0.2 0.02 270);
+  --color-secondary: oklch(0.25 0.02 270);
+  --color-secondary-foreground: oklch(0.95 0.01 270);
+  --color-muted: oklch(0.25 0.02 270);
+  --color-muted-foreground: oklch(0.6 0.01 270);
+  --color-accent: oklch(0.25 0.02 270);
+  --color-accent-foreground: oklch(0.95 0.01 270);
+  --color-destructive: oklch(0.5 0.2 20);
+  --color-destructive-foreground: oklch(0.95 0.01 270);
+  --color-border: oklch(0.25 0.02 270);
+  --color-input: oklch(0.25 0.02 270);
+  --color-ring: oklch(0.8 0.01 270);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .data-value {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.8125rem;
+  }
+
+  .pulse-critical {
+    animation: pulse-critical 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-critical {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+}
