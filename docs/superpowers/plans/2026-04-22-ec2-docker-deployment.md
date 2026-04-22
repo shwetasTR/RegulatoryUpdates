@@ -313,13 +313,27 @@ Add to `.github/workflows/deploy.yml`:
 
 ```yaml
       - name: Deploy to EC2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          GCS_TOKEN: ${{ secrets.GCS_TOKEN }}
+          GCS_WORKSPACE_ID: ${{ secrets.GCS_WORKSPACE_ID }}
         run: |
-          ssh -i ~/.ssh/deploy_key ec2-user@${{ secrets.EC2_HOST }} << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key ec2-user@${{ secrets.EC2_HOST }} \
+            GITHUB_TOKEN="$GITHUB_TOKEN" \
+            GITHUB_ACTOR="$GITHUB_ACTOR" \
+            REGISTRY="$REGISTRY" \
+            IMAGE_NAME="$IMAGE_NAME" \
+            GCS_TOKEN="$GCS_TOKEN" \
+            GCS_WORKSPACE_ID="$GCS_WORKSPACE_ID" \
+            bash << 'ENDSSH'
             # Login to GitHub Container Registry
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+            echo "$GITHUB_TOKEN" | docker login "$REGISTRY" -u "$GITHUB_ACTOR" --password-stdin
             
             # Pull latest image
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker pull "$REGISTRY/$IMAGE_NAME:latest"
             
             # Stop and remove old container if exists
             docker stop regulatoryupdates 2>/dev/null || true
@@ -330,10 +344,10 @@ Add to `.github/workflows/deploy.yml`:
               --name regulatoryupdates \
               --restart unless-stopped \
               -p 80:3000 \
-              -e GCS_TOKEN="${{ secrets.GCS_TOKEN }}" \
-              -e GCS_WORKSPACE_ID="${{ secrets.GCS_WORKSPACE_ID }}" \
+              -e GCS_TOKEN="$GCS_TOKEN" \
+              -e GCS_WORKSPACE_ID="$GCS_WORKSPACE_ID" \
               -e NODE_ENV=production \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+              "$REGISTRY/$IMAGE_NAME:latest"
             
             # Wait for container to start
             sleep 5
