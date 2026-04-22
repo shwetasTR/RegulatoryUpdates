@@ -175,35 +175,130 @@ Health check endpoint.
 
 ## Deployment
 
-### Vercel (Recommended)
+### EC2 Docker Deployment (Current Setup)
 
-1. Push your code to GitHub
+This application is deployed to AWS EC2 using GitHub Actions and Docker.
 
-2. Import project in Vercel:
-   - Go to [vercel.com](https://vercel.com)
-   - Click "Import Project"
-   - Select your GitHub repository
+#### Prerequisites
 
-3. Configure environment variables in Vercel dashboard:
-   - `GCS_TOKEN` or `GCS_BEARER_TOKEN`
-   - `GCS_WORKSPACE_ID` or `GCS_ASSET_ID` (optional)
-   - `NODE_TLS_REJECT_UNAUTHORIZED=0` (if needed for TR proxy)
+- AWS Account with EC2 access
+- GitHub repository with admin access (to add secrets)
 
-4. Deploy:
+#### One-Time Setup
+
+**Step 1: Create EC2 Instance**
+
+1. Go to AWS Console → EC2 → Launch Instance
+2. Configuration:
+   - **Name:** RegulatoryUpdates
+   - **AMI:** Amazon Linux 2023
+   - **Instance type:** t3.small
+   - **Key pair:** Create new (download the `.pem` file)
+   - **Network settings:**
+     - Allow SSH (port 22) from your IP
+     - Allow HTTP (port 80) from anywhere (0.0.0.0/0)
+3. Launch instance
+4. Copy the **Public IPv4 DNS** (e.g., `ec2-54-123-45-67.compute-1.amazonaws.com`)
+
+**Step 2: Configure GitHub Secrets**
+
+Go to: `https://github.com/YOUR_USERNAME/RegulatoryUpdates/settings/secrets/actions`
+
+Add these secrets:
+
+| Secret Name | Value | How to Get |
+|------------|-------|------------|
+| `EC2_HOST` | `ec2-XX-XXX-XXX-XX.compute-1.amazonaws.com` | From EC2 instance details |
+| `EC2_SSH_KEY` | Contents of `.pem` file | Paste entire file content |
+| `GCS_TOKEN` | Your TR GCS token | From TR GCS platform |
+| `GCS_WORKSPACE_ID` | Your workspace ID | From TR GCS platform |
+
+**Step 3: Deploy**
+
+Push to master branch or manually trigger workflow:
 ```bash
-npm run build  # Test build locally first
-vercel --prod  # Or use Vercel dashboard
+git push origin master
 ```
 
-### Manual Build
+Or trigger manually:
+- Go to Actions tab → "Deploy to EC2" workflow
+- Click "Run workflow" → Select master branch → Run
 
+**First deployment takes ~6-8 minutes** (installs Docker on EC2)
+
+**Subsequent deployments take ~3-4 minutes**
+
+#### Accessing the Application
+
+After deployment completes:
+- Check GitHub Actions summary for the URL
+- Or use the EC2 Public DNS: `http://your-ec2-dns.compute-1.amazonaws.com`
+
+#### Updating Claude Credentials
+
+**Option 1: GitHub UI**
+1. Go to repository Settings → Secrets and variables → Actions
+2. Click on `GCS_TOKEN` → Update secret
+3. Enter new value → Save
+4. Trigger new deployment (push or manual)
+
+**Option 2: GitHub CLI**
 ```bash
-# Test production build
-npm run build
-npm start
-
-# Build output in .next/ directory
+gh secret set GCS_TOKEN --body "new_token_value"
+gh secret set GCS_WORKSPACE_ID --body "new_workspace_id"
 ```
+
+Then trigger deployment to apply changes.
+
+#### Troubleshooting
+
+**View container logs:**
+```bash
+ssh -i your-key.pem ec2-user@your-ec2-dns
+docker logs regulatoryupdates
+docker logs -f regulatoryupdates  # follow live
+```
+
+**Restart container:**
+```bash
+ssh -i your-key.pem ec2-user@your-ec2-dns
+docker restart regulatoryupdates
+```
+
+**Check deployment status:**
+- GitHub Actions tab shows build/deploy progress
+- Green checkmark = successful
+- Red X = failed (click for logs)
+
+**Common issues:**
+- **Permission denied:** Check `EC2_SSH_KEY` secret is complete (includes `-----BEGIN/END-----`)
+- **Can't access URL:** Check security group allows port 80 from 0.0.0.0/0
+- **Container not running:** SSH in and run `docker ps` to check status
+
+#### Cost Estimate
+
+- **EC2 t3.small (us-east-1):** ~$15/month (running 24/7)
+- **Data transfer:** Usually under $1/month for typical usage
+- **Total:** ~$16/month
+
+To reduce costs:
+- Stop instance when not in use (requires DNS update on restart)
+- Use t3.micro instead (~$7.50/month, less memory)
+
+---
+
+### Alternative: Vercel Deployment
+
+For quick testing without EC2 setup:
+
+1. Push code to GitHub
+2. Import project in [Vercel](https://vercel.com)
+3. Add environment variables:
+   - `GCS_TOKEN`
+   - `GCS_WORKSPACE_ID`
+4. Deploy
+
+Vercel is free for hobby projects but has execution time limits.
 
 ## TR Claude Integration
 
