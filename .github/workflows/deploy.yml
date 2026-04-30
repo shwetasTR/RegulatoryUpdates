@@ -83,17 +83,17 @@ jobs:
             GCS_WORKSPACE_ID="$GCS_WORKSPACE_ID" \
             bash << 'ENDSSH'
             # Login to GitHub Container Registry
-            echo "$GITHUB_TOKEN" | docker login "$REGISTRY" -u "$GITHUB_ACTOR" --password-stdin
+            echo "$GITHUB_TOKEN" | sudo docker login "$REGISTRY" -u "$GITHUB_ACTOR" --password-stdin
 
             # Pull latest image
-            docker pull "$REGISTRY/$IMAGE_NAME:latest"
+            sudo docker pull "$REGISTRY/$IMAGE_NAME:latest"
 
             # Stop and remove old container if exists
-            docker stop regulatoryupdates 2>/dev/null || true
-            docker rm regulatoryupdates 2>/dev/null || true
+            sudo docker stop regulatoryupdates 2>/dev/null || true
+            sudo docker rm regulatoryupdates 2>/dev/null || true
 
             # Run new container
-            docker run -d \
+            sudo docker run -d \
               --name regulatoryupdates \
               --restart unless-stopped \
               -p 80:3000 \
@@ -106,11 +106,11 @@ jobs:
             sleep 5
 
             # Verify container is running
-            if docker ps | grep -q regulatoryupdates; then
+            if sudo docker ps | grep -q regulatoryupdates; then
               echo "Container started successfully"
             else
               echo "Container failed to start"
-              docker logs regulatoryupdates
+              sudo docker logs regulatoryupdates
               exit 1
             fi
           ENDSSH
