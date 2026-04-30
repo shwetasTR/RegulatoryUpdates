@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Stage 2: Build the application
 FROM node:20-alpine AS builder
