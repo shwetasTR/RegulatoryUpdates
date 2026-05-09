@@ -46,3 +46,12 @@ export function getCountdown(dateString: string): string {
   if (days === 1) return 'Tomorrow';
   return `${days} days`;
 }
+
+export function daysUntil(dateString: string): number {
+  const target = new Date(dateString);
+  const today = new Date();
+  // Normalize both to UTC midnight to avoid DST/time-of-day drift
+  const targetMidnight = Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), target.getUTCDate());
+  const todayMidnight = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  return Math.round((targetMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
+}
