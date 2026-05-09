@@ -1,174 +1,122 @@
+'use client';
+
+import { useMemo, useState } from 'react';
 import { RegulatoryChange } from '@/lib/types';
-import { Badge } from '../ui/badge';
-import { Card } from '../ui/card';
-import { formatDate, isWithin7Days, isWithin30Days } from '@/lib/utils';
-import { useState, useEffect } from 'react';
+import { bucketByDate, FeedBuckets } from '@/lib/feed-buckets';
+import { deriveTopic, Topic } from '@/lib/topics';
+import RegulatoryFeedCard from './RegulatoryFeedCard';
+import CategoryFilterStrip from './CategoryFilterStrip';
 
 interface RegulatoryFeedProps {
   changes: RegulatoryChange[];
 }
 
+interface BucketSection {
+  key: keyof FeedBuckets;
+  label: string;
+  items: RegulatoryChange[];
+  collapsibleByDefault?: boolean;
+  pinned?: boolean;
+}
+
 export default function RegulatoryFeed({ changes }: RegulatoryFeedProps) {
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [selectedTopics, setSelectedTopics] = useState<Set<Topic>>(new Set());
+  const [olderExpanded, setOlderExpanded] = useState(false);
 
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(Date.now()), 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const filtered = useMemo(() => {
+    if (selectedTopics.size === 0) return changes;
+    return changes.filter((c) => selectedTopics.has(deriveTopic(c)));
+  }, [changes, selectedTopics]);
 
-  const sortedChanges = [...changes].sort(
-    (a, b) => new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime()
+  const buckets = useMemo(() => bucketByDate(filtered), [filtered]);
+  const pinnedIds = useMemo(
+    () => new Set(buckets.criticalAndUrgent.map((c) => c.id)),
+    [buckets.criticalAndUrgent]
   );
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return 'bg-red-500/20 text-red-400 border-red-500/50';
-      case 'high':
-        return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
-      case 'medium':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
-      case 'low':
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/50';
-      default:
-        return '';
-    }
-  };
+  if (changes.length === 0) {
+    return <EmptyState message="All clear! No new regulatory updates at this time." />;
+  }
 
-  const getSourceColor = (source: string) => {
-    switch (source) {
-      case 'CSMS':
-        return 'bg-green-500/20 text-green-400';
-      case 'WH':
-        return 'bg-pink-500/20 text-pink-400';
-      case 'OFAC':
-        return 'bg-purple-500/20 text-purple-400';
-      default:
-        return 'bg-gray-500/20 text-gray-400';
-    }
-  };
+  if (filtered.length === 0) {
+    return (
+      <div className="space-y-3">
+        <CategoryFilterStrip selected={selectedTopics} onChange={setSelectedTopics} />
+        <EmptyState message="No updates match your selected categories. Click 'All' to clear filters." />
+      </div>
+    );
+  }
 
-  const getRecencyBadge = (publishDate: string) => {
-    const hoursSincePublish = (currentTime - new Date(publishDate).getTime()) / (1000 * 60 * 60);
-    if (hoursSincePublish < 24) {
-      return <Badge className="bg-green-500/20 text-green-400 animate-pulse">New</Badge>;
-    }
-    if (isWithin7Days(publishDate)) {
-      return <Badge className="bg-green-500/20 text-green-400">New</Badge>;
-    }
-    if (isWithin30Days(publishDate)) {
-      return <Badge className="bg-blue-500/20 text-blue-400">Recent</Badge>;
-    }
-    return null;
-  };
-
-  const getUrgencyBadge = (effectiveDate?: string) => {
-    if (!effectiveDate) return null;
-    if (isWithin7Days(effectiveDate)) {
-      return <Badge className="bg-red-500/20 text-red-400 border-red-500/50 animate-pulse">⚠️ Urgent</Badge>;
-    }
-    return null;
-  };
+  const sections: BucketSection[] = [
+    {
+      key: 'criticalAndUrgent',
+      label: 'Critical & Urgent',
+      items: buckets.criticalAndUrgent,
+      pinned: true,
+    },
+    { key: 'today', label: 'Today', items: buckets.today },
+    { key: 'thisWeek', label: 'This Week', items: buckets.thisWeek },
+    { key: 'earlierThisMonth', label: 'Earlier This Month', items: buckets.earlierThisMonth },
+    {
+      key: 'older',
+      label: 'Older',
+      items: buckets.older,
+      collapsibleByDefault: true,
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {sortedChanges.map((change) => (
-        <Card
-          key={change.id}
-          className={`p-4 hover:bg-accent/50 transition-colors ${
-            change.severity === 'critical' ? 'border-red-500/50 animate-pulse-slow' : ''
-          }`}
-        >
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge className={getSeverityColor(change.severity)}>
-                  {change.severity.toUpperCase()}
-                </Badge>
-                <Badge className={getSourceColor(change.source)}>
-                  {change.source}
-                </Badge>
-                {getRecencyBadge(change.publishDate)}
-                {getUrgencyBadge(change.effectiveDate)}
-              </div>
-              <div className="text-xs text-muted-foreground text-right shrink-0">
-                {formatDate(change.publishDate)}
-              </div>
+    <div className="space-y-4">
+      <CategoryFilterStrip selected={selectedTopics} onChange={setSelectedTopics} />
+
+      {sections.map((section) => {
+        if (section.items.length === 0) return null;
+
+        if (section.collapsibleByDefault && !olderExpanded) {
+          return (
+            <div key={section.key}>
+              <button
+                type="button"
+                onClick={() => setOlderExpanded(true)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Show {section.items.length} older update{section.items.length === 1 ? '' : 's'} ▾
+              </button>
             </div>
+          );
+        }
 
-            <div>
-              <h3 className="font-semibold text-sm mb-1 leading-tight">
-                {change.title}
-              </h3>
-              <p className="text-xs text-muted-foreground line-clamp-3">
-                {change.summary}
-              </p>
+        return (
+          <section key={section.key} className="space-y-2">
+            <h2
+              className={`text-sm font-semibold ${
+                section.pinned ? 'text-red-400' : 'text-muted-foreground'
+              } uppercase tracking-wider`}
+            >
+              {section.label} {section.items.length > 0 && `(${section.items.length})`}
+            </h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {section.items.map((change) => (
+                <RegulatoryFeedCard
+                  key={`${section.key}-${change.id}`}
+                  change={change}
+                  duplicateOfPinned={!section.pinned && pinnedIds.has(change.id)}
+                />
+              ))}
             </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 
-            <div className="flex items-center justify-between text-xs pt-2 border-t border-border">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Priority:</span>
-                <Badge
-                  variant="outline"
-                  className={
-                    change.priority === 'P0' || change.priority === 'P1'
-                      ? 'border-amber-500/50 text-amber-400'
-                      : ''
-                  }
-                >
-                  {change.priority}
-                </Badge>
-                <Badge variant="outline" className="ml-1">
-                  {change.effort}
-                </Badge>
-              </div>
-              {change.effectiveDate && (
-                <div className="text-muted-foreground">
-                  Effective: {formatDate(change.effectiveDate)}
-                </div>
-              )}
-            </div>
-
-            {change.teams.length > 0 && (
-              <div className="flex items-center gap-2 text-xs pt-2 border-t border-border">
-                <span className="text-muted-foreground">Teams:</span>
-                <div className="flex gap-1 flex-wrap">
-                  {change.teams.map((team) => (
-                    <Badge key={team} variant="secondary" className="text-xs">
-                      {team}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {change.url && (
-              <div className="pt-2 border-t border-border">
-                <a
-                  href={change.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  View official document →
-                </a>
-              </div>
-            )}
-          </div>
-        </Card>
-      ))}
-
-      {sortedChanges.length === 0 && (
-        <div className="col-span-2 text-center py-16">
-          <div className="text-6xl mb-4">✅</div>
-          <h3 className="text-lg font-semibold mb-2">No Changes Found</h3>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            {changes.length === 0
-              ? "All clear! No new regulatory updates at this time. Check back soon for the latest trade compliance changes."
-              : "No matches for your search. Try different keywords or clear the search filter."}
-          </p>
-        </div>
-      )}
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="text-center py-16">
+      <div className="text-6xl mb-4">✅</div>
+      <h3 className="text-lg font-semibold mb-2">No Updates</h3>
+      <p className="text-sm text-muted-foreground max-w-md mx-auto">{message}</p>
     </div>
   );
 }
