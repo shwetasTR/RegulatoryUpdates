@@ -40,7 +40,7 @@ export default function Header({ data, onRefresh, onSearch, searchQuery }: Heade
         <div>
           <h1 className="text-2xl font-semibold">Regulatory Intelligence Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            US Trade Updates • Product Module Impact Analysis
+            Daily intelligence on US trade policy — what&apos;s critical, what&apos;s effective soon, and who owns the response.
           </p>
         </div>
         <div className="flex items-center gap-3">
