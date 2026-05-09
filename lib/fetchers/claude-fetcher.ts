@@ -72,29 +72,51 @@ Example structure:
 ]`;
 
   try {
-    const response = await client.messages.create({
+    const tools: Anthropic.ToolUnion[] = [
+      { type: 'web_search_20260209', name: 'web_search' },
+    ];
+
+    const messages: Anthropic.MessageParam[] = [
+      { role: 'user', content: prompt },
+    ];
+
+    let response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 16000,
       temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
+      tools,
+      messages,
     });
 
-    // Extract text content
-    const content = response.content.find(
-      (block) => block.type === 'text'
-    );
+    // Server-side tools (web_search) cap their internal loop at 10 iterations.
+    // If hit, stop_reason === 'pause_turn' and we re-send to continue.
+    let pauseTurns = 0;
+    while (response.stop_reason === 'pause_turn' && pauseTurns < 5) {
+      messages.push({ role: 'assistant', content: response.content });
+      response = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 16000,
+        temperature: 0.3,
+        tools,
+        messages,
+      });
+      pauseTurns += 1;
+    }
 
-    if (!content || content.type !== 'text') {
+    // Concatenate every text block — with web_search, Claude interleaves
+    // narration between tool calls, so the final JSON array is in the last
+    // text block, not the first.
+    const fullText = response.content
+      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n');
+
+    if (!fullText) {
       throw new Error('No text content in Claude response');
     }
 
-    // Parse JSON from response
-    const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+    // Parse JSON — match the LAST array in the combined text (greedy).
+    const jsonMatch = fullText.match(/\[[\s\S]*\]/);
     const jsonString = jsonMatch ? jsonMatch[0] : '[]';
     const rawChanges = JSON.parse(jsonString);
 
